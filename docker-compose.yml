@@ -1,0 +1,81 @@
+version: "3.2"
+
+services:
+    api-server:
+        image: api-server
+        container_name: api-server
+        restart: unless-stopped
+
+        # We specify the image for this service and where we can build that image from
+        build:
+            context: ./Api-server
+            dockerfile: Dockerfile
+
+        # We can use these volumes to specify where we want our files to be accessible at.
+        # It's best to house all node modules on a separate volume
+        volumes:
+            - "./Api-server:/usr/src/api-server"
+            # - "/usr/src/api-server/node_modules"
+        ports:
+            - "1379:3333"
+
+        networks:
+            - artes-network
+        depends_on:
+            - artes-mysql
+
+        # For Windows, we need to enable Chokidar polling so our file changes reflect in real-time.
+        environment:
+            - CHOKIDAR_USEPOLLING=1
+
+    artes-mysql:
+        # We'll use the MySQL 5.7 image as our base image. Less likely to spring unexpected surprises.
+        image: mysql:5.7
+        restart: always
+        container_name: artes-mysql
+        healthcheck:
+            test: ["CMD", "curl", "-fk", "tcp://localhost:3306"]
+            interval: 300s
+            timeout: 400s
+            retries: 10
+        ports:
+            - 3306:3306
+        expose:
+            - "3306"
+        # It is best to bind sockets on Windows.
+        command: --innodb_use_native_aio=0 --socket=/tmp/mysql.sock --bind_address=0.0.0.0
+
+        networks:
+            - artes-network
+
+        # We'd like to be able to access our data files on our local filesystem
+        volumes:
+            - ./db:/var/lib/mysql
+
+        # It is recommended to not do this in production as it is wildly insecure
+        environment:
+            # So you don't have to use root, but you can if you like
+            MYSQL_USER: 'artes_admin'
+            # You can use whatever password you like
+            MYSQL_PASSWORD: 'root'
+            MYSQL_DATABASE: 'artes'
+            # Password for root access
+            MYSQL_ROOT_PASSWORD: 'artesroot'
+
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin:latest
+        restart: always
+        environment:
+            PMA_HOST: artes-mysql
+            PMA_USER: root
+            PMA_PASSWORD: artesroot
+        ports:
+            - "8080:80"
+        networks:
+            - artes-network
+        depends_on:
+            - artes-mysql
+
+networks:
+    artes-network:
+        driver: bridge
