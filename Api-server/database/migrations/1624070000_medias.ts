@@ -8,8 +8,7 @@ export default class Medias extends BaseSchema {
       table.increments('id')
       table.string('url').nullable()
       table.integer('parent_id',4)
-      table.integer('media_type',4).nullable()
-
+      table.enum('media_type', [1,2,3,4,5])
       table.timestamps(true, true)
     })
   }
